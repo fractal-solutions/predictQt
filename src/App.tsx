@@ -13,6 +13,9 @@ type StakeModalState = {
   marketTitle: string;
   position: 'yes' | 'no';
   marketStats: MarketStats | null;
+  error?: string;
+  maxAllowedStake?: number;
+  currentUserStake?: number;
 } | null;
 
 function App() {
@@ -90,15 +93,19 @@ function App() {
     };
   }, [userId, refreshAllData]);
 
-  const handleStake = (marketId: string, position: 'yes' | 'no') => {
+  const handleStake = async (marketId: string, position: 'yes' | 'no') => {
     const market = markets.find(m => m.id === marketId);
     const marketStatsForModal = stats.get(marketId) || null;
     if (market) {
+      const response = await fetch(`/api/user/${userId}/market/${marketId}/stake`);
+      const { currentUserStake } = await response.json();
+
       setStakeModal({
         marketId,
         marketTitle: market.title,
         position,
         marketStats: marketStatsForModal,
+        currentUserStake,
       });
     }
   };
@@ -107,7 +114,7 @@ function App() {
     if (!stakeModal) return;
 
     if (balance < amount) {
-      alert('Insufficient balance. You need more fake money!');
+      setStakeModal({ ...stakeModal, error: 'Insufficient balance.' });
       return;
     }
 
@@ -128,9 +135,13 @@ function App() {
         setStakeModal(null);
         setRefreshBetsTrigger(prev => prev + 1); // Trigger UserBetsPanel to refetch
     } else {
-        const errorText = await response.text();
-        console.error('Error placing stake:', errorText);
-        alert(`Failed to place stake. ${errorText}`);
+        const errorData = await response.json();
+        console.error('Error placing stake:', errorData);
+        setStakeModal({
+            ...stakeModal,
+            error: errorData.error,
+            maxAllowedStake: errorData.maxAllowedStake,
+        });
     }
   };
 
@@ -265,6 +276,9 @@ function App() {
           marketStats={stakeModal.marketStats}
           onConfirm={handleConfirmStake}
           onClose={() => setStakeModal(null)}
+          error={stakeModal.error}
+          maxAllowedStake={stakeModal.maxAllowedStake}
+          currentUserStake={stakeModal.currentUserStake}
         />
       )}
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { QtPanel } from './QtPanel';
 import { QtButton } from './QtButton';
 import { QtInput } from './QtInput';
-import { X } from 'lucide-react';
+import { X, AlertTriangle } from 'lucide-react';
 import { MarketStats } from '../lib/types';
 
 interface StakeModalProps {
@@ -11,9 +11,21 @@ interface StakeModalProps {
   marketStats: MarketStats | null;
   onConfirm: (amount: number) => void;
   onClose: () => void;
+  error?: string;
+  maxAllowedStake?: number;
+  currentUserStake?: number;
 }
 
-export function StakeModal({ marketTitle, position, marketStats, onConfirm, onClose }: StakeModalProps) {
+export function StakeModal({
+  marketTitle,
+  position,
+  marketStats,
+  onConfirm,
+  onClose,
+  error,
+  maxAllowedStake,
+  currentUserStake,
+}: StakeModalProps) {
   const [amount, setAmount] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [projectedPayout, setProjectedPayout] = useState(0);
@@ -26,7 +38,7 @@ export function StakeModal({ marketTitle, position, marketStats, onConfirm, onCl
     if (numAmount > 0 && currentOdds > 0) {
       const shares = numAmount / (currentOdds / 100);
       setSharesToAcquire(shares);
-      setProjectedPayout(shares * (100 / 100)); // Payout is 1:1 with shares if market resolves to your position
+      setProjectedPayout(shares); // Payout is 1:1 with shares
     } else {
       setSharesToAcquire(0);
       setProjectedPayout(0);
@@ -43,24 +55,26 @@ export function StakeModal({ marketTitle, position, marketStats, onConfirm, onCl
     }
   };
 
+  const stakePercentage = maxAllowedStake && currentUserStake ? (currentUserStake / maxAllowedStake) * 100 : 0;
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
       <div className="w-full max-w-md">
         <QtPanel title={`Stake ${position.toUpperCase()}`}>
           <button
             onClick={onClose}
-            className="absolute top-2 right-2 text-cyan-400 hover:text-cyan-300 transition-colors"
+            className="absolute top-3 right-3 text-slate-400 hover:text-cyan-300 transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-6 h-6" />
           </button>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="bg-slate-800 border-2 border-slate-700 rounded-sm p-3">
+            <div className="bg-slate-800/50 border-2 border-slate-700 rounded-sm p-3">
               <p className="text-sm font-medium text-slate-300 mb-1">Market:</p>
-              <p className="text-sm text-slate-400">{marketTitle}</p>
+              <p className="text-slate-400">{marketTitle}</p>
             </div>
 
-            <div className="bg-slate-800 border-2 border-slate-700 rounded-sm p-3">
+            <div className="bg-slate-800/50 border-2 border-slate-700 rounded-sm p-3">
               <p className="text-sm font-medium text-slate-300 mb-1">Position:</p>
               <p className={`text-lg font-bold ${
                 position === 'yes' ? 'text-emerald-400' : 'text-red-400'
@@ -68,6 +82,22 @@ export function StakeModal({ marketTitle, position, marketStats, onConfirm, onCl
                 {position.toUpperCase()} ({currentOdds.toFixed(0)}%)
               </p>
             </div>
+
+            {maxAllowedStake !== undefined && currentUserStake !== undefined && (
+              <div className="bg-slate-800/50 border-2 border-slate-700 rounded-sm p-3 text-sm">
+                <p className="text-slate-300 mb-2">Max Stake Threshold:</p>
+                <div className="w-full bg-slate-700 rounded-full h-2.5">
+                  <div
+                    className="bg-cyan-500 h-2.5 rounded-full"
+                    style={{ width: `${stakePercentage}%` }}
+                  ></div>
+                </div>
+                <div className="flex justify-between text-xs text-slate-400 mt-1">
+                  <span>Your Stake: ${currentUserStake.toFixed(2)}</span>
+                  <span>Max: ${maxAllowedStake.toFixed(2)}</span>
+                </div>
+              </div>
+            )}
 
             <QtInput
               type="number"
@@ -78,10 +108,18 @@ export function StakeModal({ marketTitle, position, marketStats, onConfirm, onCl
               step="0.01"
               placeholder="Enter amount"
               required
+              className={error ? 'border-red-500' : ''}
             />
 
+            {error && (
+              <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/30 rounded-sm p-2">
+                <AlertTriangle className="w-5 h-5" />
+                <span>{error}</span>
+              </div>
+            )}
+
             {parseFloat(amount) > 0 && (
-              <div className="bg-slate-800 border-2 border-slate-700 rounded-sm p-3 text-sm text-slate-300">
+              <div className="bg-slate-800/50 border-2 border-slate-700 rounded-sm p-3 text-sm text-slate-300 space-y-1">
                 <p>Current Odds for {position.toUpperCase()}: <span className="font-bold">{currentOdds.toFixed(0)}%</span></p>
                 <p>Shares to Acquire: <span className="font-bold text-cyan-300">{sharesToAcquire.toFixed(2)}</span></p>
                 <p>Projected Payout (if correct): <span className="font-bold text-green-400">${projectedPayout.toFixed(2)}</span></p>

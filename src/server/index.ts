@@ -108,7 +108,14 @@ const server = Bun.serve({
                 const currentUserStake = userTotalStake?.total_cost_basis || 0;
 
                 if (currentUserStake + amount > maxAllowedStake) {
-                    return new Response(`Stake exceeds maximum allowed threshold of ${maxAllowedStake.toFixed(2)}`, { status: 400 });
+                    return Response.json(
+                        {
+                            error: `Stake exceeds maximum allowed threshold of ${maxAllowedStake.toFixed(2)}`,
+                            maxAllowedStake,
+                            currentUserStake,
+                        },
+                        { status: 400 }
+                    );
                 }
 
 
@@ -170,6 +177,14 @@ const server = Bun.serve({
             const userId = req.params.userId;
             const userBets = getUserBets.all({ $user_id: userId });
             return Response.json(userBets);
+        }
+    },
+    '/api/user/:userId/market/:marketId/stake': {
+        GET: async (req) => {
+            const { userId, marketId } = req.params;
+            const userTotalStake = getUserTotalActiveStakeForMarket.get({ $user_id: userId, $market_id: marketId });
+            const currentUserStake = userTotalStake?.total_cost_basis || 0;
+            return Response.json({ currentUserStake });
         }
     },
     '/api/bets/:betId/exit': {
