@@ -1,0 +1,30 @@
+export type Market = {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  end_date: string;
+  status: 'active' | 'closed' | 'resolved';
+  outcome: 'yes' | 'no' | 'cancelled' | null;
+  created_at: string;
+  created_by: string;
+};
+
+export type Stake = {
+  id: string;
+  market_id: string;
+  user_id: string;
+  position: 'yes' | 'no';
+  amount: number;
+  created_at: string;
+};
+
+export type MarketStats = {
+  market_id: string;
+  total_yes_stake: number;
+  total_no_stake: number;
+  total_volume: number;
+  yes_odds: number;
+  no_odds: number;
+  updated_at: string;
+};
