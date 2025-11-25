@@ -8,6 +8,8 @@ export type Market = {
   outcome: 'yes' | 'no' | 'cancelled' | null;
   created_at: string;
   created_by: string;
+  initial_liquidity_provider_id: string | null;
+  initial_liquidity_amount: number;
 };
 
 export type Stake = {
@@ -34,7 +36,8 @@ export type UserBet = {
   user_id: string;
   market_id: string;
   position: 'yes' | 'no';
-  amount_staked: number;
+  shares_owned: number;
+  cost_basis: number;
   status: 'active' | 'exited' | 'resolved';
   created_at: string;
   updated_at: string;

@@ -1,6 +1,7 @@
 import { db } from '../db';
 import {
   getMarkets,
+  getMarketById,
   getMarketStats,
   getMarketStatsById,
   createMarket,
@@ -33,14 +34,40 @@ const server = Bun.serve({
             return Response.json({ markets, stats: Object.fromEntries(statsMap) });
         },
         POST: async (req) => {
-            const { title, description, category, endDate, userId } = await req.json();
+            const { title, description, category, endDate, userId, initialLiquidityAmount } = await req.json();
             const id = Bun.randomUUIDv7();
             const end_date = new Date(endDate).toISOString();
 
+            // Check if user has enough balance for initial liquidity
+            const wallet = getWallet.get({ $user_id: userId });
+            if (!wallet || wallet.balance < initialLiquidityAmount) {
+                return new Response('Insufficient balance for initial liquidity', { status: 400 });
+            }
+
+            const newBalance = wallet.balance - initialLiquidityAmount;
+
             try {
                 db.transaction(() => {
-                createMarket.run({ $id: id, $title: title, $description: description, $category: category, $end_date: end_date, $created_by: userId });
-                createMarketStats.run({ $market_id: id });
+                createMarket.run({
+                    $id: id,
+                    $title: title,
+                    $description: description,
+                    $category: category,
+                    $end_date: end_date,
+                    $created_by: userId,
+                    $initial_liquidity_provider_id: userId,
+                    $initial_liquidity_amount: initialLiquidityAmount,
+                });
+                // Initialize market stats with initial liquidity
+                createMarketStats.run({
+                    $market_id: id,
+                    $total_yes_stake: initialLiquidityAmount,
+                    $total_no_stake: initialLiquidityAmount,
+                    $total_volume: initialLiquidityAmount * 2,
+                    $yes_odds: 50,
+                    $no_odds: 50,
+                });
+                updateWallet.run({ $balance: newBalance, $user_id: userId }); // Deduct liquidity from creator's wallet
                 })();
                 broadcastMarketUpdate();
                 return Response.json({ success: true }, { status: 201 });
@@ -63,20 +90,36 @@ const server = Bun.serve({
 
                 const newBalance = wallet.balance - amount;
 
-            db.transaction(() => {
-                createStake.run({ $id: id, $market_id: marketId, $user_id: userId, $position: position, $amount: amount });
-                updateWallet.run({ $balance: newBalance, $user_id: userId });
+                console.log('handleCreateStake: userId', userId, 'marketId', marketId, 'position', position, 'amount', amount);
 
-                // Update or insert into user_bets
-                const existingBet = getUserBet.get({ $user_id: userId, $market_id: marketId, $position: position });
-                if (existingBet) {
-                    updateUserBetAmount.run({ $id: existingBet.id, $amount_staked: existingBet.amount_staked + amount });
-                } else {
-                    insertUserBet.run({ $id: Bun.randomUUIDv7(), $user_id: userId, $market_id: marketId, $position: position, $amount_staked: amount });
+                // Get current market stats to calculate shares
+                const marketStats = getMarketStatsById.get({ $market_id: marketId });
+                if (!marketStats) {
+                    return new Response('Market stats not found', { status: 404 });
                 }
+                const currentOdds = position === 'yes' ? marketStats.yes_odds : marketStats.no_odds;
+                const sharesBought = amount / (currentOdds / 100);
 
-                updateMarketStats(marketId);
-            })();
+                db.transaction(() => {
+                    createStake.run({ $id: id, $market_id: marketId, $user_id: userId, $position: position, $amount: amount });
+                    updateWallet.run({ $balance: newBalance, $user_id: userId });
+
+                    // Update or insert into user_bets
+                    const existingBet = getUserBet.get({ $user_id: userId, $market_id: marketId, $position: position });
+                    console.log('handleCreateStake: existingBet for position', position, ':', existingBet);
+
+                    if (existingBet) {
+                        const newSharesOwned = existingBet.shares_owned + sharesBought;
+                        const newCostBasis = existingBet.cost_basis + amount;
+                        updateUserBetAmount.run({ $id: existingBet.id, $shares_owned: newSharesOwned, $cost_basis: newCostBasis });
+                        console.log('handleCreateStake: Updated existing bet', existingBet.id, 'new shares', newSharesOwned, 'new cost basis', newCostBasis);
+                    } else {
+                        insertUserBet.run({ $id: Bun.randomUUIDv7(), $user_id: userId, $market_id: marketId, $position: position, $shares_owned: sharesBought, $cost_basis: amount });
+                        console.log('handleCreateStake: Inserted new bet for position', position, 'shares', sharesBought, 'cost basis', amount);
+                    }
+
+                    updateMarketStats(marketId);
+                })();
 
                 broadcastMarketUpdate();
                 return Response.json({ success: true, newBalance }, { status: 201 });
@@ -129,7 +172,8 @@ const server = Bun.serve({
 
             let payout = 0;
             if (currentOdds > 0) {
-                payout = bet.amount_staked * (100 / currentOdds) * (1 - feePercentage);
+                // Payout based on shares owned and current odds, minus fee
+                payout = bet.shares_owned * (currentOdds / 100) * (1 - feePercentage);
             }
 
             try {
@@ -140,7 +184,8 @@ const server = Bun.serve({
                         updateWallet.run({ $balance: wallet.balance + payout, $user_id: userId });
                     }
 
-                    // Update bet status
+                    // Update bet status and set shares to 0
+                    updateUserBetAmount.run({ $id: betId, $shares_owned: 0, $cost_basis: 0 }); // Set shares and cost basis to 0
                     updateUserBetStatus.run({ $id: betId, $status: 'exited' });
 
                     // Recalculate market stats (as if the stake was removed)
@@ -188,21 +233,36 @@ console.log(`Server running at ${server.url}`);
 // Business Logic
 
 function updateMarketStats(marketId: string) {
+  const market = getMarketById.get({ $id: marketId });
+  if (!market) {
+    console.error(`Market with ID ${marketId} not found for stats update.`);
+    return;
+  }
+
   const stakes = getMarketStakes.all({ $market_id: marketId });
   const total_yes_stake = stakes.filter(s => s.position === 'yes').reduce((acc, s) => acc + s.amount, 0);
   const total_no_stake = stakes.filter(s => s.position === 'no').reduce((acc, s) => acc + s.amount, 0);
-  const total_volume = total_yes_stake + total_no_stake;
 
-  const yes_odds = total_volume > 0 ? Math.round((total_yes_stake / total_volume) * 100) : 50;
-  const no_odds = total_volume > 0 ? 100 - yes_odds : 50;
+  // Incorporate initial liquidity provided by the market creator
+  const initialLiquidity = market.initial_liquidity_amount;
+  const adjusted_yes_stake = total_yes_stake + initialLiquidity;
+  const adjusted_no_stake = total_no_stake + initialLiquidity;
+  const adjusted_total_volume = adjusted_yes_stake + adjusted_no_stake;
+
+  const yes_odds = adjusted_total_volume > 0 ? Math.round((adjusted_yes_stake / adjusted_total_volume) * 100) : 50;
+  const no_odds = adjusted_total_volume > 0 ? 100 - yes_odds : 50;
+
+  // Ensure odds are never 0 or 100 to prevent division by zero and represent extreme probabilities
+  const safe_yes_odds = Math.max(1, Math.min(99, yes_odds));
+  const safe_no_odds = Math.max(1, Math.min(99, no_odds));
 
   updateMarketStatsQuery.run({
     $market_id: marketId,
-    $total_yes_stake: total_yes_stake,
-    $total_no_stake: total_no_stake,
-    $total_volume: total_volume,
-    $yes_odds: yes_odds,
-    $no_odds: no_odds,
+    $total_yes_stake: total_yes_stake, // Store actual stakes
+    $total_no_stake: total_no_stake,   // Store actual stakes
+    $total_volume: total_yes_stake + total_no_stake, // Store actual volume
+    $yes_odds: safe_yes_odds,
+    $no_odds: safe_no_odds,
   });
 }
 

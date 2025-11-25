@@ -139,7 +139,13 @@ function App() {
     description: string;
     category: string;
     endDate: string;
+    initialLiquidityAmount: number;
   }) => {
+    if (balance < data.initialLiquidityAmount) {
+      alert('Insufficient balance to provide initial liquidity.');
+      return;
+    }
+
     const response = await fetch('/api/markets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

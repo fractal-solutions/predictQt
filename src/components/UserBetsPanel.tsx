@@ -51,7 +51,7 @@ export function UserBetsPanel({ userId, markets, marketStats, onBetExit }: UserB
 
       if (response.ok) {
         const { payout } = await response.json();
-        alert(`Bet exited successfully! You received $${payout.toFixed(2)}`);
+        alert(`Bet exited successfully! You received ${payout.toFixed(2)}`);
         onBetExit(); // Trigger refresh in App.tsx
       } else {
         const errorText = await response.text();
@@ -86,7 +86,8 @@ export function UserBetsPanel({ userId, markets, marketStats, onBetExit }: UserB
           const market = markets.find(m => m.id === bet.market_id);
           const stats = marketStats.get(bet.market_id);
           const currentOdds = bet.position === 'yes' ? (stats?.yes_odds || 50) : (stats?.no_odds || 50);
-          const projectedPayout = bet.amount_staked * (100 / currentOdds); // Gross payout before fees
+          const currentMarketValue = bet.shares_owned * (currentOdds / 100);
+          const profitLoss = currentMarketValue - bet.cost_basis;
 
           if (!market) return null;
 
@@ -95,13 +96,16 @@ export function UserBetsPanel({ userId, markets, marketStats, onBetExit }: UserB
               <p className="text-sm font-medium text-slate-300">{market.title}</p>
               <div className="flex justify-between items-center text-sm">
                 <span className={`font-bold ${bet.position === 'yes' ? 'text-emerald-400' : 'text-red-400'}`}>
-                  Staked {bet.position.toUpperCase()}: ${bet.amount_staked.toFixed(2)}
+                  {bet.position.toUpperCase()} Shares: {bet.shares_owned.toFixed(2)}
                 </span>
-                <span className="text-slate-400">Current Odds: {currentOdds.toFixed(0)}%</span>
+                <span className="text-slate-400">Cost Basis: ${bet.cost_basis.toFixed(2)}</span>
               </div>
-              <p className="text-sm text-slate-400">
-                Projected Gross Payout: <span className="font-bold text-green-400">${projectedPayout.toFixed(2)}</span>
-              </p>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-400">Current Odds: {currentOdds.toFixed(0)}%</span>
+                <span className={`font-bold ${profitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  P/L: ${profitLoss.toFixed(2)}
+                </span>
+              </div>
               <QtButton
                 variant="secondary"
                 className="w-full flex items-center justify-center gap-2 mt-2"

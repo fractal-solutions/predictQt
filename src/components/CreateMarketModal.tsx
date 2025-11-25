@@ -10,6 +10,7 @@ interface CreateMarketModalProps {
     description: string;
     category: string;
     endDate: string;
+    initialLiquidityAmount: number;
   }) => void;
   onClose: () => void;
 }
@@ -19,12 +20,19 @@ export function CreateMarketModal({ onConfirm, onClose }: CreateMarketModalProps
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('general');
   const [endDate, setEndDate] = useState('');
+  const [initialLiquidityAmount, setInitialLiquidityAmount] = useState('100'); // Default to 100
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const numInitialLiquidity = parseFloat(initialLiquidityAmount);
+    if (numInitialLiquidity <= 0) {
+      alert('Initial liquidity must be greater than 0.');
+      return;
+    }
+
     setIsSubmitting(true);
-    await onConfirm({ title, description, category, endDate });
+    await onConfirm({ title, description, category, endDate, initialLiquidityAmount: numInitialLiquidity });
     setIsSubmitting(false);
   };
 
@@ -90,6 +98,17 @@ export function CreateMarketModal({ onConfirm, onClose }: CreateMarketModalProps
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
               min={minDateString}
+              required
+            />
+
+            <QtInput
+              type="number"
+              label="Initial Liquidity Amount ($)"
+              value={initialLiquidityAmount}
+              onChange={(e) => setInitialLiquidityAmount(e.target.value)}
+              min="1"
+              step="1"
+              placeholder="Enter initial liquidity"
               required
             />
 

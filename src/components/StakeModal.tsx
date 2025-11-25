@@ -17,17 +17,18 @@ export function StakeModal({ marketTitle, position, marketStats, onConfirm, onCl
   const [amount, setAmount] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [projectedPayout, setProjectedPayout] = useState(0);
+  const [sharesToAcquire, setSharesToAcquire] = useState(0);
 
   const currentOdds = position === 'yes' ? (marketStats?.yes_odds || 50) : (marketStats?.no_odds || 50);
 
   useEffect(() => {
     const numAmount = parseFloat(amount);
     if (numAmount > 0 && currentOdds > 0) {
-      // Simple odds calculation: if odds are 75%, payout is (100/75) * amount
-      // This is a simplified model, real prediction markets have more complex payout structures
-      const payoutMultiplier = 100 / currentOdds;
-      setProjectedPayout(numAmount * payoutMultiplier);
+      const shares = numAmount / (currentOdds / 100);
+      setSharesToAcquire(shares);
+      setProjectedPayout(shares * (100 / 100)); // Payout is 1:1 with shares if market resolves to your position
     } else {
+      setSharesToAcquire(0);
       setProjectedPayout(0);
     }
   }, [amount, currentOdds]);
@@ -82,7 +83,8 @@ export function StakeModal({ marketTitle, position, marketStats, onConfirm, onCl
             {parseFloat(amount) > 0 && (
               <div className="bg-slate-800 border-2 border-slate-700 rounded-sm p-3 text-sm text-slate-300">
                 <p>Current Odds for {position.toUpperCase()}: <span className="font-bold">{currentOdds.toFixed(0)}%</span></p>
-                <p>Projected Payout: <span className="font-bold text-green-400">${projectedPayout.toFixed(2)}</span></p>
+                <p>Shares to Acquire: <span className="font-bold text-cyan-300">{sharesToAcquire.toFixed(2)}</span></p>
+                <p>Projected Payout (if correct): <span className="font-bold text-green-400">${projectedPayout.toFixed(2)}</span></p>
               </div>
             )}
 

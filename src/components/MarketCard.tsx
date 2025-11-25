@@ -44,6 +44,10 @@ export function MarketCard({ market, stats, onStake }: MarketCardProps) {
               <Users className="w-3 h-3" />
               <span>Vol: ${totalVolume.toFixed(0)}</span>
             </div>
+            <div className="flex items-center gap-1">
+              <Users className="w-3 h-3" />
+              <span>Liq: ${market.initial_liquidity_amount.toFixed(0)}</span>
+            </div>
           </div>
 
           <div className="relative h-6 bg-slate-700 border border-slate-600 rounded-sm overflow-hidden">

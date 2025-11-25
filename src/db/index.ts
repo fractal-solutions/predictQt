@@ -18,7 +18,9 @@ function createSchema() {
       status TEXT DEFAULT 'active' CHECK (status IN ('active', 'closed', 'resolved')),
       outcome TEXT CHECK (outcome IN ('yes', 'no', 'cancelled') OR outcome IS NULL),
       created_at TEXT DEFAULT (datetime('now')),
-      created_by TEXT NOT NULL
+      created_by TEXT NOT NULL,
+      initial_liquidity_provider_id TEXT,
+      initial_liquidity_amount REAL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS stakes (
@@ -54,7 +56,8 @@ function createSchema() {
       user_id TEXT NOT NULL,
       market_id TEXT NOT NULL,
       position TEXT NOT NULL CHECK (position IN ('yes', 'no')),
-      amount_staked REAL NOT NULL CHECK (amount_staked >= 0),
+      shares_owned REAL NOT NULL CHECK (shares_owned >= 0),
+      cost_basis REAL NOT NULL CHECK (cost_basis >= 0),
       status TEXT DEFAULT 'active' CHECK (status IN ('active', 'exited', 'resolved')),
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
