@@ -1,16 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Market, MarketStats } from './lib/types';
 import { MarketCard } from './components/MarketCard';
 import { StakeModal } from './components/StakeModal';
 import { CreateMarketModal } from './components/CreateMarketModal';
 import { QtPanel } from './components/QtPanel';
 import { QtButton } from './components/QtButton';
+import { UserBetsPanel } from './components/UserBetsPanel';
 import { TrendingUp, Plus, RefreshCw, Wallet } from 'lucide-react';
 
 type StakeModalState = {
   marketId: string;
   marketTitle: string;
   position: 'yes' | 'no';
+  marketStats: MarketStats | null;
 } | null;
 
 function App() {
@@ -23,6 +25,7 @@ function App() {
   const [filter, setFilter] = useState<string>('all');
   const [balance, setBalance] = useState(0);
   const [balanceLoading, setBalanceLoading] = useState(true);
+  const [refreshBetsTrigger, setRefreshBetsTrigger] = useState(0);
 
   const initializeWallet = async () => {
     const response = await fetch('/api/wallets', {
@@ -47,9 +50,14 @@ function App() {
     setLoading(false);
   };
 
-  useEffect(() => {
+  const refreshAllData = useCallback(() => {
     initializeWallet();
     fetchMarkets();
+    setRefreshBetsTrigger(prev => prev + 1); // Trigger UserBetsPanel to refetch
+  }, [userId]);
+
+  useEffect(() => {
+    refreshAllData();
 
     const ws = new WebSocket('ws://localhost:3001/ws');
 
@@ -65,6 +73,8 @@ function App() {
           statsMap.set(marketId, stats[marketId]);
       });
       setStats(statsMap);
+      initializeWallet(); // Refresh wallet on market updates
+      setRefreshBetsTrigger(prev => prev + 1); // Trigger UserBetsPanel to refetch
     };
 
     ws.onclose = () => {
@@ -78,15 +88,17 @@ function App() {
     return () => {
       ws.close();
     };
-  }, [userId]);
+  }, [userId, refreshAllData]);
 
   const handleStake = (marketId: string, position: 'yes' | 'no') => {
     const market = markets.find(m => m.id === marketId);
+    const marketStatsForModal = stats.get(marketId) || null;
     if (market) {
       setStakeModal({
         marketId,
         marketTitle: market.title,
-        position
+        position,
+        marketStats: marketStatsForModal,
       });
     }
   };
@@ -114,6 +126,7 @@ function App() {
         const { newBalance } = await response.json();
         setBalance(newBalance);
         setStakeModal(null);
+        setRefreshBetsTrigger(prev => prev + 1); // Trigger UserBetsPanel to refetch
     } else {
         const errorText = await response.text();
         console.error('Error placing stake:', errorText);
@@ -173,11 +186,11 @@ function App() {
               )}
               <QtButton
                 variant="primary"
-                onClick={() => fetchMarkets()}
+                onClick={refreshAllData}
                 className="flex items-center gap-2"
               >
                 <RefreshCw className="w-4 h-4" />
-                Refresh
+                Refresh All
               </QtButton>
               <QtButton
                 variant="primary"
@@ -190,6 +203,13 @@ function App() {
             </div>
           </div>
         </QtPanel>
+
+        <UserBetsPanel
+          userId={userId}
+          markets={markets}
+          marketStats={stats}
+          onBetExit={() => setRefreshBetsTrigger(prev => prev + 1)}
+        />
 
         <QtPanel>
           <div className="flex flex-wrap gap-2">
@@ -236,6 +256,7 @@ function App() {
         <StakeModal
           marketTitle={stakeModal.marketTitle}
           position={stakeModal.position}
+          marketStats={stakeModal.marketStats}
           onConfirm={handleConfirmStake}
           onClose={() => setStakeModal(null)}
         />

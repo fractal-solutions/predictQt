@@ -1,19 +1,36 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { QtPanel } from './QtPanel';
 import { QtButton } from './QtButton';
 import { QtInput } from './QtInput';
 import { X } from 'lucide-react';
+import { MarketStats } from '../lib/types';
 
 interface StakeModalProps {
   marketTitle: string;
   position: 'yes' | 'no';
+  marketStats: MarketStats | null;
   onConfirm: (amount: number) => void;
   onClose: () => void;
 }
 
-export function StakeModal({ marketTitle, position, onConfirm, onClose }: StakeModalProps) {
+export function StakeModal({ marketTitle, position, marketStats, onConfirm, onClose }: StakeModalProps) {
   const [amount, setAmount] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [projectedPayout, setProjectedPayout] = useState(0);
+
+  const currentOdds = position === 'yes' ? (marketStats?.yes_odds || 50) : (marketStats?.no_odds || 50);
+
+  useEffect(() => {
+    const numAmount = parseFloat(amount);
+    if (numAmount > 0 && currentOdds > 0) {
+      // Simple odds calculation: if odds are 75%, payout is (100/75) * amount
+      // This is a simplified model, real prediction markets have more complex payout structures
+      const payoutMultiplier = 100 / currentOdds;
+      setProjectedPayout(numAmount * payoutMultiplier);
+    } else {
+      setProjectedPayout(0);
+    }
+  }, [amount, currentOdds]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +64,7 @@ export function StakeModal({ marketTitle, position, onConfirm, onClose }: StakeM
               <p className={`text-lg font-bold ${
                 position === 'yes' ? 'text-emerald-400' : 'text-red-400'
               }`}>
-                {position.toUpperCase()}
+                {position.toUpperCase()} ({currentOdds.toFixed(0)}%)
               </p>
             </div>
 
@@ -62,12 +79,19 @@ export function StakeModal({ marketTitle, position, onConfirm, onClose }: StakeM
               required
             />
 
+            {parseFloat(amount) > 0 && (
+              <div className="bg-slate-800 border-2 border-slate-700 rounded-sm p-3 text-sm text-slate-300">
+                <p>Current Odds for {position.toUpperCase()}: <span className="font-bold">{currentOdds.toFixed(0)}%</span></p>
+                <p>Projected Payout: <span className="font-bold text-green-400">${projectedPayout.toFixed(2)}</span></p>
+              </div>
+            )}
+
             <div className="flex gap-2 pt-2">
               <QtButton
                 type="submit"
                 variant={position}
                 className="flex-1"
-                disabled={isSubmitting || !amount}
+                disabled={isSubmitting || !amount || parseFloat(amount) <= 0}
               >
                 {isSubmitting ? 'Placing...' : 'Place Stake'}
               </QtButton>

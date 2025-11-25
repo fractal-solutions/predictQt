@@ -49,10 +49,25 @@ function createSchema() {
       updated_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS user_bets (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      market_id TEXT NOT NULL,
+      position TEXT NOT NULL CHECK (position IN ('yes', 'no')),
+      amount_staked REAL NOT NULL CHECK (amount_staked >= 0),
+      status TEXT DEFAULT 'active' CHECK (status IN ('active', 'exited', 'resolved')),
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE (user_id, market_id, position),
+      FOREIGN KEY (market_id) REFERENCES markets(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_markets_status ON markets(status);
     CREATE INDEX IF NOT EXISTS idx_markets_end_date ON markets(end_date);
     CREATE INDEX IF NOT EXISTS idx_stakes_market_id ON stakes(market_id);
     CREATE INDEX IF NOT EXISTS idx_stakes_user_id ON stakes(user_id);
+    CREATE INDEX IF NOT EXISTS idx_user_bets_user_id ON user_bets(user_id);
+    CREATE INDEX IF NOT EXISTS idx_user_bets_market_id ON user_bets(market_id);
   `);
 }
 

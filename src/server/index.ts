@@ -2,6 +2,7 @@ import { db } from '../db';
 import {
   getMarkets,
   getMarketStats,
+  getMarketStatsById,
   createMarket,
   createMarketStats,
   createStake,
@@ -10,6 +11,12 @@ import {
   updateWallet,
   getMarketStakes,
   updateMarketStats as updateMarketStatsQuery,
+  getUserBet,
+  getBetById,
+  insertUserBet,
+  updateUserBetAmount,
+  updateUserBetStatus,
+  getUserBets,
 } from '../db/queries';
 
 const server = Bun.serve({
@@ -56,11 +63,20 @@ const server = Bun.serve({
 
                 const newBalance = wallet.balance - amount;
 
-                db.transaction(() => {
-                    createStake.run({ $id: id, $market_id: marketId, $user_id: userId, $position: position, $amount: amount });
-                    updateWallet.run({ $balance: newBalance, $user_id: userId });
-                    updateMarketStats(marketId);
-                })();
+            db.transaction(() => {
+                createStake.run({ $id: id, $market_id: marketId, $user_id: userId, $position: position, $amount: amount });
+                updateWallet.run({ $balance: newBalance, $user_id: userId });
+
+                // Update or insert into user_bets
+                const existingBet = getUserBet.get({ $user_id: userId, $market_id: marketId, $position: position });
+                if (existingBet) {
+                    updateUserBetAmount.run({ $id: existingBet.id, $amount_staked: existingBet.amount_staked + amount });
+                } else {
+                    insertUserBet.run({ $id: Bun.randomUUIDv7(), $user_id: userId, $market_id: marketId, $position: position, $amount_staked: amount });
+                }
+
+                updateMarketStats(marketId);
+            })();
 
                 broadcastMarketUpdate();
                 return Response.json({ success: true, newBalance }, { status: 201 });
@@ -86,6 +102,60 @@ const server = Bun.serve({
             }
         }
     },
+    '/api/user/bets/:userId': {
+        GET: async (req) => {
+            const userId = req.params.userId;
+            const userBets = getUserBets.all({ $user_id: userId });
+            return Response.json(userBets);
+        }
+    },
+    '/api/bets/:betId/exit': {
+        POST: async (req) => {
+            const betId = req.params.betId;
+            const { userId } = await req.json(); // Assuming userId is sent in the body for verification
+
+            const bet = getBetById.get({ $id: betId });
+            if (!bet || bet.user_id !== userId || bet.status !== 'active') {
+                return new Response('Bet not found or not active for this user', { status: 404 });
+            }
+
+            const marketStats = getMarketStatsById.get({ $market_id: bet.market_id });
+            if (!marketStats) {
+                return new Response('Market stats not found', { status: 404 });
+            }
+
+            const currentOdds = bet.position === 'yes' ? marketStats.yes_odds : marketStats.no_odds;
+            const feePercentage = 0.02; // 2% fee for early exit
+
+            let payout = 0;
+            if (currentOdds > 0) {
+                payout = bet.amount_staked * (100 / currentOdds) * (1 - feePercentage);
+            }
+
+            try {
+                db.transaction(() => {
+                    // Update user's wallet
+                    const wallet = getWallet.get({ $user_id: userId });
+                    if (wallet) {
+                        updateWallet.run({ $balance: wallet.balance + payout, $user_id: userId });
+                    }
+
+                    // Update bet status
+                    updateUserBetStatus.run({ $id: betId, $status: 'exited' });
+
+                    // Recalculate market stats (as if the stake was removed)
+                    // This is a simplified approach; a more robust solution might involve re-processing stakes
+                    updateMarketStats(bet.market_id);
+                })();
+
+                broadcastMarketUpdate();
+                return Response.json({ success: true, payout: payout }, { status: 200 });
+            } catch (error) {
+                console.error('Error exiting bet:', error);
+                return new Response('Failed to exit bet', { status: 500 });
+            }
+        }
+    },
     '/ws': (req, server) => {
         const upgraded = server.upgrade(req);
         if (!upgraded) {
@@ -96,11 +166,11 @@ const server = Bun.serve({
   websocket: {
     open(ws) {
       ws.subscribe('market-updates');
-      console.log('WebSocket connection opened');
+      console.log('WebSocket connection opened:', ws.remoteAddress);
     },
-    close(ws) {
+    close(ws, code, reason) {
       ws.unsubscribe('market-updates');
-      console.log('WebSocket connection closed');
+      console.log('WebSocket connection closed:', ws.remoteAddress, 'Code:', code, 'Reason:', reason);
     },
     message(ws, message) {
       // Not expecting messages from client in this implementation

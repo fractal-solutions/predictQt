@@ -28,3 +28,14 @@ export type MarketStats = {
   no_odds: number;
   updated_at: string;
 };
+
+export type UserBet = {
+  id: string;
+  user_id: string;
+  market_id: string;
+  position: 'yes' | 'no';
+  amount_staked: number;
+  status: 'active' | 'exited' | 'resolved';
+  created_at: string;
+  updated_at: string;
+};
