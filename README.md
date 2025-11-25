@@ -1,8 +1,8 @@
-# Qflow Cloud: Decentralized Prediction Markets
+# predictQt: Decentralized Prediction Markets
 
 ## 🔮 Predict the Future, Earn Rewards
 
-Welcome to Qflow Cloud, your platform for decentralized prediction markets. Here, you can bet on real-world events, express your beliefs about the future, and earn rewards when your predictions are accurate.
+Welcome to predictQt, your platform for decentralized prediction markets. Here, you can bet on real-world events, express your beliefs about the future, and earn rewards when your predictions are accurate.
 
 ---
 
@@ -12,8 +12,8 @@ At its core, a prediction market is an exchange where you can buy and sell "shar
 
 ### 1. Create or Join a Market
 
-*   **Create:** Propose a new market for an event you're interested in (e.g., "Will Bitcoin reach $100k by end of 2025?").
-*   **Join:** Browse existing markets and find events you want to predict on.
+*   **Create:** Propose a new market for an event you're interested in (e.g., "Will Bitcoin reach $100k by end of 2025?"). When creating a market, you, as the creator, provide an **initial liquidity amount**. This initial liquidity seeds the market, making it immediately tradable and stabilizing the initial odds.
+*   **Join:** Browse existing markets and find events you want to predict on. You can see the total liquidity of each market, helping you make informed decisions.
 
 ### 2. Buy Shares (Stake YES or NO)
 
@@ -26,7 +26,7 @@ When you participate in a market, you buy shares in either a "YES" outcome or a 
 
 ### 3. Real-time Odds & Projected Payouts
 
-Qflow Cloud provides real-time updates on market odds. As you consider staking, you'll see:
+predictQt provides real-time updates on market odds. As you consider staking, you'll see:
 
 *   **Current Odds:** The live probability of each outcome.
 *   **Shares to Acquire:** How many shares you'll get for your stake amount.
@@ -49,9 +49,10 @@ Once the event occurs and the market's end date is reached, the market "resolves
 
 ---
 
-## ✨ Why Qflow Cloud?
+## ✨ Why predictQt?
 
 *   **Decentralized:** Built on robust, transparent technology.
+*   **Creator-Provided Liquidity:** Market creators seed their markets with initial liquidity, ensuring immediate tradability and stable odds.
 *   **Real-time:** Live odds and market updates.
 *   **Flexible:** Buy and sell shares to manage your positions.
 *   **Intuitive:** Easy-to-use interface for creating and participating in markets.
