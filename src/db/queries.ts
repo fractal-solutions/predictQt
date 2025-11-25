@@ -1,5 +1,5 @@
 import { db } from './index';
-import { Market, MarketStats, Stake } from '../lib/types';
+import type { Market, MarketStats, Stake, UserBet } from '../lib/types';
 
 // Market Queries
 export const getMarkets = db.query<Market[], null>('SELECT * FROM markets ORDER BY created_at DESC');
@@ -19,12 +19,13 @@ export const createWallet = db.prepare('INSERT INTO user_wallets (user_id, balan
 export const updateWallet = db.prepare('UPDATE user_wallets SET balance = $balance WHERE user_id = $user_id');
 
 // User Bets Queries
-export const getUserBet = db.query<UserBet, { $user_id: string; $market_id: string; $position: 'yes' | 'no'; }>('SELECT * FROM user_bets WHERE user_id = $user_id AND market_id = $market_id AND position = $position AND status = \'active\'');
+export const getUserBet = db.query<UserBet, { $user_id: string; $market_id: string; $position: 'yes' | 'no'; }>(`SELECT * FROM user_bets WHERE user_id = $user_id AND market_id = $market_id AND position = $position AND status = 'active'`);
 export const getBetById = db.query<UserBet, { $id: string }>('SELECT * FROM user_bets WHERE id = $id');
 export const insertUserBet = db.prepare('INSERT INTO user_bets (id, user_id, market_id, position, shares_owned, cost_basis) VALUES ($id, $user_id, $market_id, $position, $shares_owned, $cost_basis)');
 export const updateUserBetAmount = db.prepare('UPDATE user_bets SET shares_owned = $shares_owned, cost_basis = $cost_basis, updated_at = datetime(\'now\') WHERE id = $id');
 export const updateUserBetStatus = db.prepare('UPDATE user_bets SET status = $status, updated_at = datetime(\'now\') WHERE id = $id');
-export const getUserBets = db.query<UserBet[], { $user_id: string }>('SELECT * FROM user_bets WHERE user_id = $user_id AND status = \'active\'');
+export const getUserBets = db.query<UserBet[], { $user_id: string }>(`SELECT * FROM user_bets WHERE user_id = $user_id AND status = 'active'`);
+export const getUserTotalActiveStakeForMarket = db.query<{ total_cost_basis: number }, { $user_id: string; $market_id: string }>(`SELECT SUM(cost_basis) as total_cost_basis FROM user_bets WHERE user_id = $user_id AND market_id = $market_id AND status = 'active'`);
 
 // Stats Update
 export const getMarketStakes = db.query<{ position: 'yes' | 'no', amount: number }, { $market_id: string }>('SELECT position, amount FROM stakes WHERE market_id = $market_id');

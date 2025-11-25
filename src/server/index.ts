@@ -18,7 +18,10 @@ import {
   updateUserBetAmount,
   updateUserBetStatus,
   getUserBets,
+  getUserTotalActiveStakeForMarket,
 } from '../db/queries';
+
+const MAX_BET_THRESHOLD_PERCENTAGE = 0.10; // 10%
 
 const server = Bun.serve({
   port: 3001,
@@ -88,15 +91,32 @@ const server = Bun.serve({
                     return new Response('Insufficient balance', { status: 400 });
                 }
 
+                const market = getMarketById.get({ $id: marketId });
+                if (!market) {
+                    return new Response('Market not found', { status: 404 });
+                }
+
+                // Enforce maximum bet threshold
+                const marketStats = getMarketStatsById.get({ $market_id: marketId });
+                if (!marketStats) {
+                    return new Response('Market stats not found', { status: 404 });
+                }
+                const totalLiquidity = market.initial_liquidity_amount + marketStats.total_volume;
+                const maxAllowedStake = totalLiquidity * MAX_BET_THRESHOLD_PERCENTAGE;
+
+                const userTotalStake = getUserTotalActiveStakeForMarket.get({ $user_id: userId, $market_id: marketId });
+                const currentUserStake = userTotalStake?.total_cost_basis || 0;
+
+                if (currentUserStake + amount > maxAllowedStake) {
+                    return new Response(`Stake exceeds maximum allowed threshold of ${maxAllowedStake.toFixed(2)}`, { status: 400 });
+                }
+
+
                 const newBalance = wallet.balance - amount;
 
                 console.log('handleCreateStake: userId', userId, 'marketId', marketId, 'position', position, 'amount', amount);
 
                 // Get current market stats to calculate shares
-                const marketStats = getMarketStatsById.get({ $market_id: marketId });
-                if (!marketStats) {
-                    return new Response('Market stats not found', { status: 404 });
-                }
                 const currentOdds = position === 'yes' ? marketStats.yes_odds : marketStats.no_odds;
                 const sharesBought = amount / (currentOdds / 100);
 
